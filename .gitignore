@@ -1,0 +1,13 @@
+/bin/
+/dist/
+.DS_Store
+.env
+.env.*
+!.env.example
+config.json
+mapping.json
+mapping.json.broken-*
+daemon.lock
+*.log
+*.test
+coverage.out

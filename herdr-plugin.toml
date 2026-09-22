@@ -1,0 +1,79 @@
+# Telegram Approver: remote approvals for long-running Herdr agents.
+#
+# Unlike the plugin this one is modelled on, there is no release pipeline yet,
+# so [[build]] compiles from the checkout with the local Go toolchain instead
+# of downloading a signed binary. `herdr plugin link` skips [[build]] entirely,
+# which is the intended development path: run `make build` once, then link.
+#
+# min_herdr_version is 0.9.0 because the adapter targets socket protocol 22 and
+# relies on two things protocol 17 did not have: agent.read source
+# "recent_unwrapped" (added because "recent" is refused for a busy
+# alternate-screen pane) and the pane.agent_status_changed subscription, which
+# is what replaces the old plugin's one-second screen polling.
+
+id = "spancerxing.telegram-bridge"
+name = "Telegram Bridge"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Bridge Herdr coding agents to Telegram: remote approvals with buttons, status dashboard, completion notices, and quiet mode."
+platforms = ["linux", "macos"]
+
+# Starts once after Herdr restores its server session. The launcher is
+# idempotent; the bridge exits when the server stays unreachable.
+[[startup]]
+command = ["bin/herdr-tg", "startup"]
+
+# Compiles bin/herdr-tg from the checkout. scripts/build.sh locates a Go
+# toolchain (including the ~/go-sdk install this repo was developed against)
+# and fails with an actionable message when there is none.
+[[build]]
+command = ["sh", "scripts/build.sh"]
+platforms = ["linux", "macos"]
+
+# Shows what the plugin can see and whether each kind can be answered from
+# Telegram. This is the action to run when buttons do not appear, because it
+# prints the reason: no dialog at the bottom of the screen, a kind whose
+# manifest has no blocked rule, or a pane that cannot be read.
+[[actions]]
+id = "probe"
+title = "Telegram Bridge: probe agents"
+command = ["bin/herdr-tg", "probe"]
+
+# Prints the per-kind state-hook matrix and the exact install command for each
+# one that is missing.
+[[actions]]
+id = "integrations"
+title = "Telegram Bridge: agent integrations"
+command = ["bin/herdr-tg", "integrations"]
+
+# Lists the event stream for a few seconds, which is how a blocked status is
+# noticed. Useful to confirm the subscription is alive without waiting for a
+# real question.
+[[actions]]
+id = "watch"
+title = "Telegram Bridge: watch status events"
+command = ["bin/herdr-tg", "probe", "--watch", "30s"]
+
+# Start the bridge without leaving a long-running action invocation behind.
+[[actions]]
+id = "daemon"
+title = "Telegram Bridge: start the bridge"
+command = ["bin/herdr-tg", "startup"]
+
+[[actions]]
+id = "setup"
+title = "Telegram Bridge: connect Telegram"
+command = ["sh", "-c", "exec \"$HERDR_BIN_PATH\" plugin pane open --plugin \"$HERDR_PLUGIN_ID\" --entrypoint setup"]
+
+[[actions]]
+id = "install-pi-extension"
+title = "Telegram Bridge: install Pi companion extension"
+command = ["bin/herdr-tg", "install-extension"]
+
+[[panes]]
+id = "setup"
+title = "Telegram Bridge setup"
+placement = "popup"
+width = "80%"
+height = "70%"
+command = ["sh", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-tg\" setup"]
