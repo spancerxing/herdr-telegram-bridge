@@ -17,10 +17,11 @@ import (
 
 var errDaemonRunning = errors.New("daemon already running")
 
-// Lock the canonical config location, so the standalone config and Herdr's
-// symlink to it cannot start competing Telegram pollers. Never unlink this
-// file: every process must lock the same inode. The kernel releases the lock
-// on exit, including crashes; stale file contents do not imply a live daemon.
+// Lock the canonical config location, so two entry points that resolve the
+// config through different paths cannot start competing Telegram pollers.
+// Never unlink this file: every process must lock the same inode. The kernel
+// releases the lock on exit, including crashes; stale file contents do not
+// imply a live daemon.
 func acquireDaemonLock(configPath string) (*os.File, error) {
 	canonical, err := filepath.EvalSymlinks(configPath)
 	if err != nil {

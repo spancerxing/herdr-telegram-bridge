@@ -175,9 +175,10 @@ what the `cursor` style exists for, and it was found by driving the real path.
 `setup` validates the token with getMe, then waits for you to add the bot
 to a forum supergroup as an administrator; the promotion (or any message
 there) hands over the `chat_id` and the first operator id. The config lands
-at `~/.config/herdr-telegram-bridge/config.json` (0600), or next to whatever
-`--config` points at — when Herdr runs the plugin, it uses the plugin config
-dir. `mapping.json` beside it remembers which pane owns which topic.
+in the plugin's Herdr config directory (0600):
+`~/.config/herdr/plugins/config/spancerxing.telegram-bridge/config.json`,
+or next to whatever `--config` points at. `mapping.json` beside it remembers
+which pane owns which topic.
 
 The daemon then:
 
@@ -214,7 +215,7 @@ server session. It exits when Herdr is unreachable continuously for 5 seconds
 (checked every second). Brief server handoffs can reconnect. Detaching a UI
 client leaves the Herdr server and long-running tasks alive, so the bridge
 continues too. A config-scoped OS lock prevents duplicate Telegram pollers,
-including when the plugin config is a symlink to the standalone config.
+including when two entry points resolve the config through different paths.
 
 Linking or enabling a plugin does **not** run its startup hook immediately.
 To start it in an already-running Herdr session:

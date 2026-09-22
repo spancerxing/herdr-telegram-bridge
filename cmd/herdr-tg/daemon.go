@@ -26,8 +26,8 @@ func runDaemon(ctx context.Context, args []string, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	// Herdr's config may link to the standalone config. Keep both entry
-	// points on the same mapping as well as the same daemon lock.
+	// Resolve symlinks once, so every entry point locks the same file and
+	// writes the same mapping.json beside the real config.
 	cfgPath, err = filepath.EvalSymlinks(cfgPath)
 	if err != nil {
 		return err

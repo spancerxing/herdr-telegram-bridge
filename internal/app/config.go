@@ -20,8 +20,15 @@ type Config struct {
 	OperatorIDs []int64 `json:"operator_ids"`
 }
 
+// PluginID is this plugin's Herdr registration id. It must match `id` in
+// herdr-plugin.toml: the id is also the last segment of the config directory
+// Herdr hands the plugin, so a mismatch silently sends the daemon to a
+// different, empty directory. TestPluginIDMatchesManifest guards the pair.
+const PluginID = "spancerxing.telegram-bridge"
+
 // ConfigPath resolves the config file: an explicit --config path, then the
-// directory Herdr hands a linked plugin, then the standalone default.
+// directory Herdr hands a plugin it launches, then that same directory derived
+// from home for a direct CLI invocation.
 func ConfigPath(flagPath string) string {
 	if flagPath != "" {
 		return flagPath
@@ -33,11 +40,16 @@ func ConfigPath(flagPath string) string {
 	if err != nil {
 		return "config.json"
 	}
-	return standaloneConfigPath(home)
+	return pluginConfigPath(home)
 }
 
-func standaloneConfigPath(home string) string {
-	return filepath.Join(home, ".config", "herdr-telegram-bridge", "config.json")
+// pluginConfigPath is where Herdr keeps a plugin's config:
+// ~/.config/herdr/plugins/config/<plugin id>/config.json. Herdr passes the same
+// directory in HERDR_PLUGIN_CONFIG_DIR when it runs an action; deriving it here
+// is what makes a hand-typed `herdr-tg setup` write the file Herdr will later
+// read, instead of a second config nobody looks at.
+func pluginConfigPath(home string) string {
+	return filepath.Join(home, ".config", "herdr", "plugins", "config", PluginID, "config.json")
 }
 
 const configExample = `{"bot_token":"123456:ABC…","chat_id":-1001234567890,"operator_ids":[12345678]}`

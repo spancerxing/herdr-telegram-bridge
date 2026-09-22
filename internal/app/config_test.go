@@ -22,16 +22,29 @@ func TestConfigPathResolution(t *testing.T) {
 	}
 	t.Setenv("HERDR_PLUGIN_CONFIG_DIR", "")
 	home, _ := os.UserHomeDir()
-	if got := ConfigPath(""); got != standaloneConfigPath(home) {
+	if got := ConfigPath(""); got != pluginConfigPath(home) {
 		t.Fatalf("default = %q", got)
 	}
 }
 
-func TestStandaloneConfigPath(t *testing.T) {
+func TestPluginConfigPath(t *testing.T) {
 	dir := t.TempDir()
-	want := filepath.Join(dir, ".config", "herdr-telegram-bridge", "config.json")
-	if got := standaloneConfigPath(dir); got != want {
-		t.Fatalf("standalone config = %q, want %q", got, want)
+	want := filepath.Join(dir, ".config", "herdr", "plugins", "config", PluginID, "config.json")
+	if got := pluginConfigPath(dir); got != want {
+		t.Fatalf("plugin config = %q, want %q", got, want)
+	}
+}
+
+// The manifest id and PluginID are two spellings of one fact, and the id decides
+// which directory the config is read from. If they drift, the daemon reads an
+// empty directory and reports a missing config that is sitting right there.
+func TestPluginIDMatchesManifest(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "herdr-plugin.toml"))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if !strings.Contains(string(b), `id = "`+PluginID+`"`) {
+		t.Fatalf("herdr-plugin.toml does not declare id = %q", PluginID)
 	}
 }
 
