@@ -1,4 +1,4 @@
-# Telegram Approver: remote approvals for long-running Herdr agents.
+# Telegram Bridge: remote approvals for long-running Herdr agents.
 #
 # Unlike the plugin this one is modelled on, there is no release pipeline yet,
 # so [[build]] compiles from the checkout with the local Go toolchain instead

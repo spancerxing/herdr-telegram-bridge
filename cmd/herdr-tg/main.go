@@ -17,7 +17,7 @@ import (
 	"github.com/spancerxing/herdr-telegram-bridge/internal/domain"
 )
 
-const usage = `Telegram Approver — approve Herdr agent tasks from Telegram
+const usage = `Telegram Bridge — bridge Herdr agents to Telegram
 
 usage:
   herdr-tg probe [--socket PATH] [--watch SECONDS]

@@ -1,4 +1,4 @@
-# Telegram Approver
+# Telegram Bridge
 
 Leave long-running AI tasks unattended and approve their questions from
 Telegram. A Herdr plugin for **Claude Code**, **Codex**, **agy** (Antigravity
@@ -63,7 +63,7 @@ add the bot to a forum supergroup, and grant Manage Topics, Delete Messages,
 and Pin Messages. Finish setup before starting the bridge:
 
 ```bash
-herdr plugin action invoke spancerxing.telegram-approver.daemon
+herdr plugin action invoke spancerxing.telegram-bridge.daemon
 ```
 
 For Pi, also install both state-reporting components, then run `/reload` in
@@ -71,12 +71,12 @@ existing Pi sessions:
 
 ```bash
 herdr integration install pi
-herdr plugin action invoke spancerxing.telegram-approver.install-pi-extension
+herdr plugin action invoke spancerxing.telegram-bridge.install-pi-extension
 ```
 
 The Pi companion is bundled with this plugin; no separate package publication
 is needed. The bridge starts automatically on subsequent Herdr server starts.
-Use `herdr plugin config-dir spancerxing.telegram-approver` to locate its
+Use `herdr plugin config-dir spancerxing.telegram-bridge` to locate its
 configuration. GitHub installation currently builds from source and requires
 Go; prebuilt downloads are not provided yet.
 
@@ -224,7 +224,7 @@ Linking or enabling a plugin does **not** run its startup hook immediately.
 To start it in an already-running Herdr session:
 
 ```bash
-herdr plugin action invoke spancerxing.telegram-approver.daemon
+herdr plugin action invoke spancerxing.telegram-bridge.daemon
 ```
 
 Re-run `herdr plugin link .` after changing the manifest. Background logs go
