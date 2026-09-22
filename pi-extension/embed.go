@@ -12,7 +12,7 @@ import _ "embed"
 // ManagedMarker identifies a file this plugin owns. The installer refuses to
 // overwrite a file that does not carry it, so a hand-written extension that
 // happens to share the name is never silently destroyed.
-const ManagedMarker = "@herdr-telegram-multi-managed"
+const ManagedMarker = "@herdr-telegram-bridge-managed"
 
 // FileName is the name the file must have in pi's extensions directory for pi
 // to load it. The file's own name is not significant to pi (any *.ts in the

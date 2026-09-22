@@ -14,11 +14,9 @@ Keep `herdr-plugin.toml` on the default branch and add the GitHub repository
 topic `herdr-plugin`. The marketplace refreshes approximately every 30 minutes.
 There is no submission PR to a central official plugin repository.
 
-The public plugin ID is `spancerxing.telegram-bridge`. The previous development
-ID was `local.herdr-telegram-multi`. Changing IDs creates a different plugin
-registration and config/state directory. Existing local installations should
-link the new config to their existing config, disable the old registration,
-and start the new entrypoint. The shared config lock prevents duplicate pollers.
+The public plugin ID is `spancerxing.telegram-bridge`. Changing it later creates
+a different plugin registration and config/state directory, so treat the ID as
+fixed once published.
 
 ## Distribution
 

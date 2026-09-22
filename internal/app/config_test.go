@@ -27,40 +27,11 @@ func TestConfigPathResolution(t *testing.T) {
 	}
 }
 
-func TestStandaloneConfigRenamePreservesExistingConfiguration(t *testing.T) {
+func TestStandaloneConfigPath(t *testing.T) {
 	dir := t.TempDir()
-	current := filepath.Join(dir, ".config", "herdr-telegram-bridge", "config.json")
-	approver := filepath.Join(dir, ".config", "herdr-telegram-approver", "config.json")
-	legacy := filepath.Join(dir, ".config", "herdr-telegram-multi", "config.json")
-	if got := standaloneConfigPath(dir); got != current {
-		t.Fatalf("new install: %s", got)
-	}
-	if err := os.MkdirAll(filepath.Dir(legacy), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(legacy, []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if got := standaloneConfigPath(dir); got != legacy {
-		t.Fatalf("existing install: %s", got)
-	}
-	if err := os.MkdirAll(filepath.Dir(approver), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(approver, []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if got := standaloneConfigPath(dir); got != approver {
-		t.Fatalf("approver install: %s", got)
-	}
-	if err := os.MkdirAll(filepath.Dir(current), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(current, []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if got := standaloneConfigPath(dir); got != current {
-		t.Fatalf("explicit new config: %s", got)
+	want := filepath.Join(dir, ".config", "herdr-telegram-bridge", "config.json")
+	if got := standaloneConfigPath(dir); got != want {
+		t.Fatalf("standalone config = %q, want %q", got, want)
 	}
 }
 

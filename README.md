@@ -178,10 +178,6 @@ there) hands over the `chat_id` and the first operator id. The config lands
 at `~/.config/herdr-telegram-bridge/config.json` (0600), or next to whatever
 `--config` points at — when Herdr runs the plugin, it uses the plugin config
 dir. `mapping.json` beside it remembers which pane owns which topic.
-Standalone installations from the former `herdr-telegram-multi` project keep
-using their existing config when no new config exists. The Pi companion keeps
-its existing filename and ownership marker so upgrades do not install two
-copies of the same event emitter.
 
 The daemon then:
 

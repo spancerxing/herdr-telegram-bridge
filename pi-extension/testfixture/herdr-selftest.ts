@@ -1,4 +1,4 @@
-// @herdr-telegram-multi-e2e-fixture
+// @herdr-telegram-bridge-e2e-fixture
 //
 // A pi extension used only to test the blocked path end to end.
 //

@@ -1,4 +1,4 @@
-// @herdr-telegram-multi-managed
+// @herdr-telegram-bridge-managed
 // Reinstalling overwrites this file. Put your own extensions beside it.
 /**
  * herdr-blocked-emitter — tells Herdr when pi is waiting on the user.

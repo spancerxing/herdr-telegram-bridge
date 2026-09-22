@@ -37,21 +37,7 @@ func ConfigPath(flagPath string) string {
 }
 
 func standaloneConfigPath(home string) string {
-	current := filepath.Join(home, ".config", "herdr-telegram-bridge", "config.json")
-	// Keep reading the config of the two earlier names so an upgrade does not
-	// silently lose a working bot token; the shared daemon lock means only one
-	// of these can ever be polled at a time.
-	approver := filepath.Join(home, ".config", "herdr-telegram-approver", "config.json")
-	legacy := filepath.Join(home, ".config", "herdr-telegram-multi", "config.json")
-	if _, err := os.Stat(current); errors.Is(err, os.ErrNotExist) {
-		if _, err := os.Stat(approver); err == nil {
-			return approver
-		}
-		if _, err := os.Stat(legacy); err == nil {
-			return legacy
-		}
-	}
-	return current
+	return filepath.Join(home, ".config", "herdr-telegram-bridge", "config.json")
 }
 
 const configExample = `{"bot_token":"123456:ABC…","chat_id":-1001234567890,"operator_ids":[12345678]}`
