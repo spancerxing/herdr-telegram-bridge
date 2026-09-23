@@ -133,8 +133,8 @@ func TestButtonTextEntryWaitsForMessage(t *testing.T) {
 
 	// The next message in the topic is the free text.
 	d.answerInTopic(context.Background(), domain.TopicMessage{ThreadID: 101, FromID: 7, Text: "do the thing"})
-	if prompts := fh.promptLog(); len(prompts) != 1 || prompts[0].text != "do the thing" {
-		t.Fatalf("prompts: %v", prompts)
+	if len(fh.typed) != 1 || fh.typed[0].text != "do the thing" || len(fh.promptLog()) != 0 {
+		t.Fatalf("text answer must bypass agent.prompt: typed=%v prompts=%v", fh.typed, fh.promptLog())
 	}
 	if _, waiting := d.typing["w1:p1"]; waiting {
 		t.Fatal("typing wait not consumed")

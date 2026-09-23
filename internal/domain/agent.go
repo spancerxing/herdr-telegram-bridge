@@ -215,6 +215,9 @@ type Event struct {
 	WorkspaceID string
 	// KindName is the agent name from an agent_detected event ("claude").
 	AgentName string
+	// AgentReleased is Herdr's explicit release signal on agent_detected.
+	// The agent left the pane even when its terminal is still open.
+	AgentReleased bool
 	// Status is set on EventAgentStatusChanged. A nil AgentStatus on the
 	// wire means the pane no longer holds an agent.
 	Status    Status

@@ -24,12 +24,15 @@ type fakeHerdr struct {
 
 	agents    []domain.Agent
 	dialog    domain.Dialog
+	dialogAfterKeys *domain.Dialog
 	screen    domain.Screen
 	readErr   error
 	promptErr error
+	typeErr   error
 	listErr   error
 
 	prompts       []promptReq
+	typed         []promptReq
 	keys          []keyReq
 	subPanes      [][]string
 	events        chan domain.Event
@@ -79,10 +82,23 @@ func (f *fakeHerdr) Prompt(_ context.Context, pane, text string) error {
 	return nil
 }
 
+func (f *fakeHerdr) TypeAndSubmit(_ context.Context, pane, text string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.typeErr != nil {
+		return f.typeErr
+	}
+	f.typed = append(f.typed, promptReq{pane, text})
+	return nil
+}
+
 func (f *fakeHerdr) SendKeys(_ context.Context, pane string, keys []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.keys = append(f.keys, keyReq{pane, slices.Clone(keys)})
+	if f.dialogAfterKeys != nil {
+		f.dialog = *f.dialogAfterKeys
+	}
 	return nil
 }
 
@@ -163,6 +179,7 @@ type fakeTelegram struct {
 	reopened       []int
 	sendErr        error
 	deleteTopicErr error
+	closeTopicErr  error
 	nextThread     int
 	nextMessage    int
 
@@ -230,7 +247,7 @@ func (f *fakeTelegram) CloseTopic(_ context.Context, _ int64, threadID int) erro
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.closed = append(f.closed, threadID)
-	return nil
+	return f.closeTopicErr
 }
 
 func (f *fakeTelegram) DeleteTopic(_ context.Context, _ int64, threadID int) error {

@@ -193,7 +193,11 @@ The daemon then:
 - retires the buttons once the question is answered (pressing a stale
   button answers "expired");
 - forwards what you type in a topic to that agent;
-- deletes an agent's topic and all its messages when its pane closes (falls back to close if deletion is refused), keeping Telegram tidy.
+- deletes an agent's topic and all its messages as soon as Herdr reports
+  that the agent was released or its pane closed, even if the terminal
+  remains open; a 15-second scan catches agents that disappear without an
+  event. If deletion fails, it tries closing the topic; if both fail, later
+  scans retry. Task completion (`done`) keeps the topic available for follow-up.
 
 Buttons answer through `dialog.KeysFor`, so every kind is answered the way
 its own CLI expects. Non-operators are ignored; what they press gets a

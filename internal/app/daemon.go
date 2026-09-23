@@ -123,12 +123,8 @@ func (d *Daemon) run(ctx context.Context, sweep <-chan time.Time) error {
 	var events <-chan domain.Event
 	var retry <-chan time.Time
 	var subscribed []string
-	// ponytail: Herdr 0.9.1 does not deliver pane events for panes without
-	// their own subscription (measured: create+close of an unlisted pane
-	// produced nothing on the global pane.closed/agent_detected subs), so a
-	// periodic sweep of agent.list is what discovers new panes — the same
-	// net the plugin this replaces uses. Drop it if a server upgrade adds
-	// true workspace-wide pane events.
+	// Lifecycle events discover and retire agents immediately. The periodic
+	// sweep heals missed events and retries failed Telegram cleanup.
 	for {
 		select {
 		case <-ctx.Done():
@@ -257,9 +253,12 @@ func (d *Daemon) reconcile(ctx context.Context) error {
 	}
 	for _, pane := range d.mapping.Orphans(liveSet) {
 		e := d.mapping.Topics[pane]
-		if err := d.tg.DeleteTopic(ctx, d.chatID, e.ThreadID); err != nil {
+		if err := d.tg.DeleteTopic(ctx, d.chatID, e.ThreadID); err != nil && !isTopicDeleted(err) {
 			d.log.Warn("delete orphan topic", slog.String("pane", pane), slog.String("err", err.Error()))
-			_ = d.tg.CloseTopic(ctx, d.chatID, e.ThreadID)
+			if err := d.tg.CloseTopic(ctx, d.chatID, e.ThreadID); err != nil {
+				d.log.Warn("close orphan topic; will retry", slog.String("pane", pane), slog.String("err", err.Error()))
+				continue
+			}
 			d.mapping.MarkClosed(pane, true)
 		} else {
 			d.mapping.Remove(pane)
@@ -337,11 +336,27 @@ func isTopicGone(err error) bool {
 	return strings.Contains(s, "topic gone") || strings.Contains(s, "topic_id_invalid") || strings.Contains(s, "topic_deleted") || strings.Contains(s, "thread not found")
 }
 
+// A previous delete can have succeeded even if its response was lost.
+// Only explicit absence is success here; a closed topic still exists.
+func isTopicDeleted(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "topic_id_invalid") || strings.Contains(s, "topic_deleted") || strings.Contains(s, "thread not found")
+}
+
 func (d *Daemon) handleEvent(ctx context.Context, ev domain.Event) {
 	switch ev.Kind {
 	case domain.EventAgentStatusChanged:
 		d.handleStatus(ctx, ev)
 	case domain.EventAgentDetected:
+		if ev.AgentReleased {
+			// Herdr explicitly released this agent; the pane can remain
+			// open as a shell. Clean up now instead of waiting for a sweep.
+			d.handleClosed(ctx, ev.PaneID)
+			return
+		}
 		// A pane (re)acquired an agent; give it a topic if it has none.
 		if _, err := d.refreshAgents(ctx); err != nil {
 			d.log.Warn("agent.list failed", slog.String("err", err.Error()))
@@ -412,10 +427,13 @@ func (d *Daemon) handleClosed(ctx context.Context, paneID string) {
 		d.persist()
 		return
 	}
-	if err := d.tg.DeleteTopic(ctx, d.chatID, e.ThreadID); err != nil {
+	if err := d.tg.DeleteTopic(ctx, d.chatID, e.ThreadID); err != nil && !isTopicDeleted(err) {
 		d.log.Warn("delete topic", slog.String("pane", paneID), slog.String("err", err.Error()))
-		_ = d.tg.CloseTopic(ctx, d.chatID, e.ThreadID)
-		d.mapping.MarkClosed(paneID, true)
+		if err := d.tg.CloseTopic(ctx, d.chatID, e.ThreadID); err != nil {
+			d.log.Warn("close topic; will retry", slog.String("pane", paneID), slog.String("err", err.Error()))
+		} else {
+			d.mapping.MarkClosed(paneID, true)
+		}
 	} else {
 		d.mapping.Remove(paneID)
 		d.log.Info("topic deleted", slog.String("pane", paneID), slog.Int("thread", e.ThreadID))
@@ -441,14 +459,31 @@ func (d *Daemon) answerInTopic(ctx context.Context, m domain.TopicMessage) {
 	if text == "" || strings.HasPrefix(text, "/") {
 		return
 	}
-	// An open ✏️ wait: this message is the free-text answer the button
-	// asked for, and its retired keyboard needs nothing further.
-	if w, waiting := d.typing[paneID]; waiting && d.clock.Now().Before(w.until) {
-		delete(d.typing, paneID)
+	w, waiting := d.typing[paneID]
+	typeAnswer := waiting && d.clock.Now().Before(w.until)
+	if !typeAnswer {
+		if a, known := d.agents[paneID]; known && (a.Kind == domain.KindCodex || a.Status == domain.StatusBlocked) {
+			_, _, dialog, err := d.herdr.ReadForDialog(ctx, paneID, a.Kind, 60)
+			if err != nil {
+				d.reply(ctx, m.ThreadID, "⚠️ "+err.Error())
+				return
+			}
+			typeAnswer = dialog.TextInput
+		}
 	}
-	if err := d.herdr.Prompt(ctx, paneID, text); err != nil {
+	var err error
+	if typeAnswer {
+		err = d.herdr.TypeAndSubmit(ctx, paneID, text)
+	} else {
+		err = d.herdr.Prompt(ctx, paneID, text)
+	}
+	if err != nil {
 		d.reply(ctx, m.ThreadID, "⚠️ "+err.Error())
 		return
+	}
+	delete(d.typing, paneID)
+	if typeAnswer {
+		d.retireKeyboard(ctx, paneID)
 	}
 	d.log.Info("message forwarded", slog.String("pane", paneID), slog.Int("thread", m.ThreadID))
 }

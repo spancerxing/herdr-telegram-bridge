@@ -239,28 +239,26 @@ func TestQuietModeAtDeskIsSilent(t *testing.T) {
 	// At desk: idle for only 10 seconds (< 3 minutes)
 	d.SetIdleChecker(fakeIdleChecker{idle: 10 * time.Second})
 
+	// Done at desk must be suppressed entirely (not pushed to topic)
 	d.handleStatus(context.Background(), domain.Event{
 		Kind: domain.EventAgentStatusChanged, PaneID: "w1:p1", Status: domain.StatusDone,
 	})
 	sent := ft.sentLog()
-	if len(sent) != 1 {
-		t.Fatalf("sent %d messages", len(sent))
-	}
-	if sent[0].Notify {
-		t.Errorf("at desk must be silent (Notify: false), got Notify=true")
+	if len(sent) != 0 {
+		t.Fatalf("at desk done must be suppressed, got %d messages", len(sent))
 	}
 
-	// Blocked question at desk should also be silent
+	// Blocked question at desk is posted silently (Notify: false)
 	fh.screen = domain.Screen{Text: "confirm?"}
 	fh.dialog = piCursorDialog()
 	d.handleStatus(context.Background(), domain.Event{
 		Kind: domain.EventAgentStatusChanged, PaneID: "w1:p1", Status: domain.StatusBlocked,
 	})
 	sent = ft.sentLog()
-	if len(sent) != 2 {
+	if len(sent) != 1 {
 		t.Fatalf("sent %d messages", len(sent))
 	}
-	if sent[1].Notify {
+	if sent[0].Notify {
 		t.Errorf("blocked at desk must be silent (Notify: false), got Notify=true")
 	}
 }
@@ -356,8 +354,8 @@ func TestAnswerInTopicReportsPromptFailure(t *testing.T) {
 }
 
 func TestSweepPicksUpNewAgent(t *testing.T) {
-	// Herdr 0.9.1 has no workspace-wide pane events, so the periodic sweep
-	// is what notices a pane born after the last reconcile.
+	// If a lifecycle event is missed, the periodic sweep still notices
+	// a pane born after the last reconcile.
 	d, fh, ft := newTestDaemon(t, agentsFixture()[:1], piCursorDialog(), "screen")
 	if err := d.reconcile(context.Background()); err != nil {
 		t.Fatal(err)

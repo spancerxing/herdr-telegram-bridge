@@ -48,9 +48,26 @@ func (d *Daemon) PostBlocked(ctx context.Context, a domain.Agent) {
 	if screen.Text == "" {
 		return
 	}
-	sum := sha256.Sum256([]byte(screen.Text))
+	text := questionText(dialog, screen.Text)
+	// Terminal activity above an open question must not repost it.
+	sum := sha256.Sum256([]byte(text))
 	hash := hex.EncodeToString(sum[:])
 	if hash == d.lastPosted[a.PaneID] {
+		return
+	}
+	if q := d.questions[a.PaneID]; q != nil && q.dialog.Style == domain.StyleQueued && dialog.Usable() && dialog.Style != domain.StyleQueued {
+		// Opening a question replaces its shortcut card. Subsequent
+		// questions retain the normal one-card-per-question behavior.
+		if err := d.tg.EditText(ctx, d.chatID, q.messageID, text, false); err != nil {
+			d.log.Warn("update opened question", "err", err)
+			return
+		}
+		if err := d.tg.EditKeyboard(ctx, d.chatID, q.messageID, choiceButtons(dialog)); err != nil {
+			d.log.Warn("update opened question buttons", "err", err)
+			return
+		}
+		q.dialog = dialog
+		d.lastPosted[a.PaneID] = hash
 		return
 	}
 	// A second question supersedes the first; retire its buttons.
@@ -58,7 +75,7 @@ func (d *Daemon) PostBlocked(ctx context.Context, a domain.Agent) {
 	out := domain.Outgoing{
 		ChatID:   d.chatID,
 		ThreadID: thread,
-		Text:     questionText(dialog, screen.Text),
+		Text:     text,
 		Notify:   d.shouldNotify(),
 	}
 	if dialog.Usable() {
@@ -87,6 +104,12 @@ func (d *Daemon) PostDone(ctx context.Context, a domain.Agent) {
 	if d.lastPosted[a.PaneID] == postedDone {
 		return
 	}
+	d.retireKeyboard(ctx, a.PaneID)
+	if !d.shouldNotify() {
+		// When the operator is actively at the computer, skip completion noise.
+		d.lastPosted[a.PaneID] = postedDone
+		return
+	}
 	thread, ok := d.mapping.ThreadFor(a.PaneID)
 	if !ok {
 		return
@@ -98,12 +121,11 @@ func (d *Daemon) PostDone(ctx context.Context, a domain.Agent) {
 	name := a.DisplayName()
 	text := fmt.Sprintf("🏆 任务已完成 · %s", name)
 	if screen.Text != "" {
-		clean := domain.TrimScreenChrome(screen.Text)
+		clean := strings.TrimSpace(domain.TrimScreenChrome(screen.Text))
 		if clean != "" {
-			text += "\n\n" + tailLines(clean, 15)
+			text += "\n\n" + strings.TrimSpace(tailLines(clean, 15))
 		}
 	}
-	d.retireKeyboard(ctx, a.PaneID)
 	out := domain.Outgoing{
 		ChatID:   d.chatID,
 		ThreadID: thread,
@@ -122,6 +144,13 @@ func (d *Daemon) PostDone(ctx context.Context, a domain.Agent) {
 // It trims trailing terminal chrome and prefixes with ❓ without
 // duplicating the title twice.
 func questionText(dg domain.Dialog, screen string) string {
+	if dg.Body != "" {
+		text := "❓ " + dg.Body
+		if dg.TextInput {
+			text += "\n\n请直接在此话题发送文字回答。"
+		}
+		return text
+	}
 	clean := strings.TrimSpace(domain.TrimScreenChrome(screen))
 	text := strings.TrimSpace(tailLines(clean, questionLines))
 	if text == "" {
@@ -146,6 +175,9 @@ func tailLines(s string, n int) string {
 // row and the free-text entry when the dialog has them. Callback data is
 // an index into Choices (or a verb), well under Telegram's 64-byte cap.
 func choiceButtons(dg domain.Dialog) []domain.Button {
+	if dg.Style == domain.StyleQueued {
+		return []domain.Button{{Text: "Shift + ←", Data: domain.CallbackOpenQuestion}}
+	}
 	buttons := make([]domain.Button, 0, len(dg.Choices)+1)
 	for i, c := range dg.Choices {
 		label := c.Caption
@@ -195,6 +227,17 @@ func (d *Daemon) handleButton(ctx context.Context, b domain.ButtonPress) {
 		return
 	}
 	switch {
+	case b.Data == domain.CallbackOpenQuestion:
+		if q.dialog.Style != domain.StyleQueued {
+			_ = d.tg.AnswerCallback(ctx, b.CallbackID, "expired", false)
+			return
+		}
+		if err := d.herdr.SendKeys(ctx, paneID, []string{"shift+left"}); err != nil {
+			_ = d.tg.AnswerCallback(ctx, b.CallbackID, "⚠️ "+err.Error(), true)
+			return
+		}
+		_ = d.tg.AnswerCallback(ctx, b.CallbackID, "正在展开问题", false)
+		d.PostBlocked(ctx, d.agents[paneID])
 	case b.Data == domain.CallbackSubmit:
 		if !q.dialog.Multi {
 			_ = d.tg.AnswerCallback(ctx, b.CallbackID, "expired", false)

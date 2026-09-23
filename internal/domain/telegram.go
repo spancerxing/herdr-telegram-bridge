@@ -42,6 +42,8 @@ type Button struct {
 // Button verb prefixes. Callback data is capped at 64 bytes by Telegram, so
 // these stay short and the payload is an index rather than a pane id.
 const (
+	// CallbackOpenQuestion reveals a collapsed Codex question composer.
+	CallbackOpenQuestion = "open"
 	// CallbackSubmit is the "✔ Submit" row of a multi-select dialog.
 	CallbackSubmit = "sub"
 	// CallbackTextEntryPrefix marks the free-text row; the rest is the

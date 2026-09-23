@@ -119,6 +119,16 @@ same long-lived connection. Subscriptions to `pane.agent_status_changed`
 **require** a `pane_id`; `pane.agent_detected` and `pane.closed` are
 workspace-wide.
 
+Live Telegram lifecycle testing on 2026-09-22 found that Herdr 0.9.1 sends
+`pane_agent_detected` and `pane_closed` in lifecycle event envelopes, despite
+the dotted subscription names. The adapter accepts both spellings. A
+`released: true` detection event retires the agent's topic even when the
+terminal stays open. Ignoring these envelopes made cleanup wait for the
+15-second sweep; after the fix, a real Pi exit and a pane close each removed
+their Telegram topic in about 1.9 seconds, including API calls. Explicit
+`TOPIC_ID_INVALID` responses also retire stale mappings instead of retrying
+deletion forever.
+
 ## The per-kind matrix
 
 This is the finding that shaped the design, and the one that is easy to get

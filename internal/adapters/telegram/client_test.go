@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+func TestClientUsesDefaultTransport(t *testing.T) {
+	c := NewClient("", "T", nil)
+	if c.http.Transport != nil {
+		t.Fatal("client must use the standard HTTP transport, not custom proxy routing")
+	}
+}
+
 func TestClientDecodesResultAndHidesToken(t *testing.T) {
 	f := newFakeAPI(t)
 	f.respond("getMe", `{"ok":true,"result":{"id":42,"is_bot":true}}`)

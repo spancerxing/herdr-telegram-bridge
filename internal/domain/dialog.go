@@ -39,6 +39,10 @@ const (
 	// this shape and nothing else, so without it a blocked pi pane produces no
 	// buttons at all.
 	StyleCursor Style = "cursor"
+	// StyleText is an open free-text question, without selectable choices.
+	StyleText Style = "text"
+	// StyleQueued represents a collapsed question that needs opening.
+	StyleQueued Style = "queued"
 )
 
 // Dialog is the dialog at the bottom of a blocked screen: the options that
@@ -71,10 +75,16 @@ type Dialog struct {
 	// SubmitRow is the row of the bare "Submit" line a multi-select dialog
 	// ends with, or 0 when the renderer submits on enter.
 	SubmitRow int
+	// Body is a scoped question panel, excluding unrelated terminal history.
+	Body string
+	// TextInput means the panel accepts a typed answer directly.
+	TextInput bool
 }
 
 // Usable reports whether the dialog produced buttons.
-func (d Dialog) Usable() bool { return d.Style != StyleNone && len(d.Choices) > 0 }
+func (d Dialog) Usable() bool {
+	return d.Style == StyleText || d.Style == StyleQueued || (d.Style != StyleNone && len(d.Choices) > 0)
+}
 
 // MaxChoiceKeys is the highest digit an option may carry and still be
 // answerable: agent.send_keys understands 1..9, so a dialog with a tenth
@@ -222,9 +232,12 @@ var (
 	// checkboxGlyph matches the multi-select marker: "[ ]", "[x]", "[✔]"
 	// with or without a variation selector, or the bare ☐/☑/☒ pair.
 	checkboxGlyph = regexp.MustCompile(`^(?:\[[^\[\]]{1,2}\]|\[ \]|[☐☑☒])\s+`)
-	// ruleLine matches a horizontal rule: at least eight of the same box or
+	// ruleLine matches a horizontal rule: at least six of the same box or
 	// dash character.
-	ruleLine = regexp.MustCompile(`^\s*[─═━—–-]{8,}\s*$`)
+	ruleLine = regexp.MustCompile(`^\s*[─═━—–-]{6,}\s*$`)
+	// bannerRuleLine matches progress/status banners bounded by dashes:
+	// "── ⠏ Working ───────────────────────"
+	bannerRuleLine = regexp.MustCompile(`(?i)^\s*[─═━—–-]{2,}.*(?:Working|Thinking|Idle|Ready|Done).*[─═━—–-]{2,}\s*$`)
 
 	// inputPromptLine matches an empty prompt or placeholder composer line:
 	// "› Ask Codex...", "›", "❯", ">", "π", "%", "$", "#", "?"
@@ -233,7 +246,13 @@ var (
 	shellPromptLine = regexp.MustCompile(`^\s*[\w\.\-]+@[\w\.\-]+[:\s].*[%$#]\s*$`)
 	// statusContextLine matches Codex/Claude status lines like "gpt-... · ... · Context 0% used"
 	statusContextLine = regexp.MustCompile(`(?i)(?:context\s+\d+%\s+used|high\s*·\s*~|low\s*·\s*~|medium\s*·\s*~)`)
-	piStatusLine      = regexp.MustCompile(`^\d+(?:\.\d+)?%/\d+(?:\.\d+)?[kKmM]\s+\(auto\)\s+\(.+\).+`)
+	// piStatusLine matches pi's context window gauge, e.g. "2.3%/1.0M (auto)"
+	// or preceded by transfer/token stats "↑23k ↓3.1k R61k CH0.0% 2.3%/1.0M (auto)..."
+	piStatusLine = regexp.MustCompile(`\d+(?:\.\d+)?%/\d+(?:\.\d+)?[kKmM]\s+\(auto\)`)
+	// piExtensionLine matches extension status badges, e.g. "● ADHD ON yolo ● 🐴 ponytail: ⚡ FULL"
+	piExtensionLine = regexp.MustCompile(`^\s*●\s+.*`)
+	// cwdLine matches standalone working directory or branch lines at the bottom of a screen
+	cwdLine = regexp.MustCompile(`^\s*(?:~|/|[A-Za-z]:[/\\])\S*(?:\s+\([^)]+\))?\s*$`)
 
 	allKnownFooters = []string{
 		"press enter to confirm or esc to cancel",
@@ -276,7 +295,29 @@ func TrimTrailingPrompts(screen string) string {
 }
 
 func isPromptOrStatusLine(trimmed string) bool {
-	return inputPromptLine.MatchString(trimmed) || shellPromptLine.MatchString(trimmed) || statusContextLine.MatchString(trimmed)
+	// Codex/pi draws braille animation/spinners across composers or banners.
+	// Remove it only for chrome classification, never from the actual question or output.
+	trimmed = strings.TrimSpace(withoutComposerAnimation(trimmed))
+	if trimmed == "" {
+		return true
+	}
+	return inputPromptLine.MatchString(trimmed) ||
+		shellPromptLine.MatchString(trimmed) ||
+		statusContextLine.MatchString(trimmed) ||
+		piStatusLine.MatchString(trimmed) ||
+		piExtensionLine.MatchString(trimmed) ||
+		cwdLine.MatchString(trimmed) ||
+		ruleLine.MatchString(trimmed) ||
+		bannerRuleLine.MatchString(trimmed)
+}
+
+func withoutComposerAnimation(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= '\u2800' && r <= '\u28ff' {
+			return -1
+		}
+		return r
+	}, s)
 }
 
 // TrimScreenChrome strips trailing footer lines (e.g. "press enter to confirm"),
@@ -296,6 +337,9 @@ func TrimScreenChrome(screen string) string {
 }
 
 func isChromeLine(trimmed string) bool {
+	if codexAnswerHint.MatchString(trimmed) || codexQuestionCount.MatchString(trimmed) || trimmed == codexQueueHeading {
+		return true
+	}
 	lower := strings.ToLower(trimmed)
 	for _, f := range allKnownFooters {
 		if strings.Contains(lower, f) {
@@ -324,6 +368,14 @@ func ParseDialog(screen string, kind Kind) Dialog {
 		return Dialog{}
 	}
 	screen = TrimTrailingPrompts(screen)
+	if kind == KindCodex {
+		if body := codexPendingBody(screen); body != "" {
+			return Dialog{Kind: kind, Style: StyleQueued, Title: codexQueueHeading, Body: body}
+		}
+		if dialog, ok := parseCodexQuestion(screen); ok {
+			return dialog
+		}
+	}
 	lines := screenLines(screen)
 	if len(lines) > maxChoiceRows {
 		lines = lines[len(lines)-maxChoiceRows:]

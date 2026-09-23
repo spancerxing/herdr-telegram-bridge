@@ -749,4 +749,19 @@ Continue with the bridge test?
 	if got := TrimScreenChrome(piScreen); got != wantPi {
 		t.Errorf("TrimScreenChrome(pi):\ngot:\n%q\nwant:\n%q", got, wantPi)
 	}
+
+	const piModernDoneScreen = ` $ curl -sL "https://example.com"
+ Took 54.2s
+
+── ⠏ Working ──────────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────────────────────────
+~/task
+↑23k ↓3.1k R61k CH0.0% 2.3%/1.0M (auto)     (cline) deepseek-v4.1-flash • high
+● ADHD ON yolo ● 🐴 ponytail: ⚡ FULL
+`
+	wantModernPi := ` $ curl -sL "https://example.com"
+ Took 54.2s`
+	if got := TrimScreenChrome(piModernDoneScreen); got != wantModernPi {
+		t.Errorf("TrimScreenChrome(piModernDoneScreen):\ngot:\n%q\nwant:\n%q", got, wantModernPi)
+	}
 }

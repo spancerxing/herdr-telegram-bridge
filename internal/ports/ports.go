@@ -42,6 +42,9 @@ type Herdr interface {
 	// launching: agent.prompt refuses those with agent_not_ready while the
 	// pane accepts input normally.
 	Prompt(ctx context.Context, paneID, text string) error
+	// TypeAndSubmit answers an already-open text input through the pane.
+	// Unlike Prompt, it can reach a blocked agent's interactive composer.
+	TypeAndSubmit(ctx context.Context, paneID, text string) error
 	// SendKeys sends raw key names, for answering dialogs and for /keys.
 	SendKeys(ctx context.Context, paneID string, keys []string) error
 	Focus(ctx context.Context, paneID string) error

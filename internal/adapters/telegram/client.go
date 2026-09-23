@@ -11,10 +11,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -67,32 +65,7 @@ func NewClient(baseURL, token string, log *slog.Logger) *Client {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	transport := &http.Transport{
-		Proxy: telegramProxy,
-	}
-	return &Client{baseURL: baseURL, token: token, http: &http.Client{Transport: transport}, log: log}
-}
-
-func telegramProxy(req *http.Request) (*url.URL, error) {
-	if u, err := http.ProxyFromEnvironment(req); err == nil && u != nil {
-		return u, nil
-	}
-	for _, env := range []string{"HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "HTTP_PROXY", "http_proxy"} {
-		if val := os.Getenv(env); val != "" {
-			if !strings.Contains(val, "://") {
-				val = "http://" + val
-			}
-			if u, err := url.Parse(val); err == nil {
-				return u, nil
-			}
-		}
-	}
-	// Fall back to local clash proxy if listening
-	if conn, err := net.DialTimeout("tcp", "127.0.0.1:7897", 200*time.Millisecond); err == nil {
-		_ = conn.Close()
-		return url.Parse("http://127.0.0.1:7897")
-	}
-	return nil, nil
+	return &Client{baseURL: baseURL, token: token, http: &http.Client{}, log: log}
 }
 
 // call posts one method, serialised against every other call so messages

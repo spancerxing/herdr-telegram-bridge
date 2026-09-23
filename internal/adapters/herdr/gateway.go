@@ -392,6 +392,9 @@ func (g *Gateway) ReadForDialog(ctx context.Context, paneID string, kind domain.
 			first, firstSource = screen, src
 		}
 		if dialog := domain.ParseDialog(screen.Text, kind); dialog.Usable() {
+			if dialog.Style == domain.StyleQueued && src != domain.ScreenVisible {
+				continue // confirm the shortcut is on the live viewport
+			}
 			return screen, src, dialog, nil
 		}
 	}
@@ -549,6 +552,8 @@ func (g *Gateway) runSubscription(ctx context.Context, subs []subscription, ch c
 
 // translate maps one wire envelope to a domain event. The bool is false for
 // events the plugin does not consume.
+// Herdr 0.9.1 sends underscore names for lifecycle envelopes even though
+// their subscription names use dots. Keep both spellings compatible.
 func (g *Gateway) translate(env eventEnvelope) (domain.Event, bool) {
 	now := time.Now()
 	switch domain.EventKind(env.Event) {
@@ -568,7 +573,7 @@ func (g *Gateway) translate(env eventEnvelope) (domain.Event, bool) {
 			Received:    now,
 		}, true
 
-	case domain.EventPaneClosed:
+	case domain.EventPaneClosed, "pane_closed":
 		var d paneClosedData
 		if err := json.Unmarshal(env.Data, &d); err != nil {
 			g.log.Warn("pane.closed event not understood", slog.String("err", err.Error()))
@@ -583,18 +588,19 @@ func (g *Gateway) translate(env eventEnvelope) (domain.Event, bool) {
 			Received:    now,
 		}, true
 
-	case domain.EventAgentDetected:
+	case domain.EventAgentDetected, "pane_agent_detected":
 		var d agentDetectedData
 		if err := json.Unmarshal(env.Data, &d); err != nil {
 			g.log.Warn("agent_detected event not understood", slog.String("err", err.Error()))
 			return domain.Event{}, false
 		}
 		ev := domain.Event{
-			Kind:        domain.EventAgentDetected,
-			PaneID:      d.PaneID,
-			WorkspaceID: d.WorkspaceID,
-			AgentName:   deref(d.Agent),
-			Received:    now,
+			Kind:          domain.EventAgentDetected,
+			PaneID:        d.PaneID,
+			WorkspaceID:   d.WorkspaceID,
+			AgentName:     deref(d.Agent),
+			AgentReleased: d.Released,
+			Received:      now,
 		}
 		if d.FinalStatus != nil {
 			ev.Status = domain.ParseStatus(*d.FinalStatus)
