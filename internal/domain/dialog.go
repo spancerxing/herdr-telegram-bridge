@@ -367,7 +367,6 @@ func ParseDialog(screen string, kind Kind) Dialog {
 	if lines := screenLines(strings.TrimSpace(screen)); len(lines) > 0 && shellPromptLine.MatchString(lines[len(lines)-1]) {
 		return Dialog{}
 	}
-	screen = TrimTrailingPrompts(screen)
 	if kind == KindCodex {
 		if body := codexPendingBody(screen); body != "" {
 			return Dialog{Kind: kind, Style: StyleQueued, Title: codexQueueHeading, Body: body}
@@ -376,6 +375,7 @@ func ParseDialog(screen string, kind Kind) Dialog {
 			return dialog
 		}
 	}
+	screen = TrimTrailingPrompts(screen)
 	lines := screenLines(screen)
 	if len(lines) > maxChoiceRows {
 		lines = lines[len(lines)-maxChoiceRows:]

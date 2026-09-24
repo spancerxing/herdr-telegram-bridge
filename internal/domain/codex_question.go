@@ -38,8 +38,8 @@ func codexPendingBody(screen string) string {
 	return strings.Join([]string{tail[n-3], count, tail[n-1]}, "\n")
 }
 
-// parseCodexQuestion recognizes the expanded async-question panel measured
-// on the live Codex terminal. The footer anchors it to the active composer.
+// parseCodexQuestion recognizes expanded queued questions and direct questions
+// measured on the live Codex terminal. The footer anchors the active composer.
 func parseCodexQuestion(screen string) (Dialog, bool) {
 	lines := screenLines(strings.TrimSpace(screen))
 	if len(lines) == 0 {
@@ -57,7 +57,35 @@ func parseCodexQuestion(screen string) (Dialog, bool) {
 		}
 	}
 	if start < 0 {
-		return Dialog{}, false
+		// A question opened directly by Codex has no queued-input heading.
+		// Its active panel ends with the answer placeholder and this footer;
+		// the question itself starts with the selected ">" row.
+		placeholder := len(lines) - 2
+		for placeholder >= 0 && strings.TrimSpace(lines[placeholder]) == "" {
+			placeholder--
+		}
+		if placeholder < 0 || strings.TrimSpace(lines[placeholder]) != "Type your answer" {
+			return Dialog{}, false
+		}
+		end := placeholder
+		for end > 0 && strings.TrimSpace(lines[end-1]) == "" {
+			end--
+		}
+		start = end
+		for start > 0 && strings.TrimSpace(lines[start-1]) != "" {
+			start--
+		}
+		if start == end || !strings.HasPrefix(strings.TrimSpace(lines[start]), "› > ") {
+			return Dialog{}, false
+		}
+		body := make([]string, end-start)
+		copy(body, lines[start:end])
+		body[0] = strings.TrimPrefix(strings.TrimSpace(body[0]), "› > ")
+		question := strings.TrimSpace(strings.Join(body, "\n"))
+		if question == "" {
+			return Dialog{}, false
+		}
+		return Dialog{Kind: KindCodex, Style: StyleText, Title: question, Body: question, TextInput: true}, true
 	}
 	bodyLines := lines[start : len(lines)-1]
 	for len(bodyLines) > 0 {

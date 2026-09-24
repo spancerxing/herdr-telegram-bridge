@@ -45,6 +45,32 @@ func TestCodexQuestionPostsOnlyPanelAndAcceptsText(t *testing.T) {
 	}
 }
 
+func TestCodexDirectQuestionAcceptsTopicAnswer(t *testing.T) {
+	const screen = `• Ran a tool
+
+› > 请说明输入框的问题。
+
+  Type your answer
+
+  enter submit   ctrl+] skip   ⌥+↓ main prompt
+`
+	agents := agentsFixture()[:1]
+	agents[0].Kind, agents[0].Status = domain.KindCodex, domain.StatusBlocked
+	d, fh, ft := newTestDaemon(t, agents, domain.ParseDialog(screen, domain.KindCodex), screen)
+	ctx := context.Background()
+	if err := d.reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if sent := ft.sentLog(); len(sent) != 1 || sent[0].Text != "❓ 请说明输入框的问题。\n\n请直接在此话题发送文字回答。" {
+		t.Fatalf("direct question post: %+v", sent)
+	}
+	fh.promptErr = context.DeadlineExceeded
+	d.answerInTopic(ctx, domain.TopicMessage{ThreadID: 101, Text: "答案"})
+	if len(fh.typed) != 1 || fh.typed[0].text != "答案" {
+		t.Fatalf("answer did not use pane input: %+v", fh.typed)
+	}
+}
+
 func TestTextEntryRetryPreservesPendingAnswer(t *testing.T) {
 	dg := domain.Dialog{Kind: domain.KindClaude, Style: domain.StyleNumbered, Title: "What next?",
 		Choices:   []domain.Choice{{Number: 1, Label: "retry", Key: "1"}, {Number: 2, Label: "abort", Key: "2"}},
@@ -119,4 +145,3 @@ func TestClickShiftLeftOpensCodexQuestionCard(t *testing.T) {
 		t.Fatalf("expected question card (messageID 1) to be edited, got: %+v", ft.editedText)
 	}
 }
-

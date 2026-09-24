@@ -60,6 +60,29 @@ func TestParseCodexExpandedTextQuestion(t *testing.T) {
 	}
 }
 
+func TestParseCodexDirectTextQuestion(t *testing.T) {
+	const screen = `• Ran a tool
+  └ unrelated history
+
+› > 请说明输入框的问题。它可以换行吗？
+    请提供一个具体例子。
+
+  Type your answer
+
+  enter submit   ctrl+] skip   ⌥+↓ main prompt
+`
+	d := ParseDialog(screen, KindCodex)
+	if !d.Usable() || d.Style != StyleText || !d.TextInput || d.Title != "请说明输入框的问题。它可以换行吗？\n    请提供一个具体例子。" {
+		t.Fatalf("direct text question: %+v", d)
+	}
+	if strings.Contains(d.Body, "unrelated history") || strings.Contains(d.Body, "Type your answer") {
+		t.Fatalf("question includes transcript or chrome: %q", d.Body)
+	}
+	if stale := ParseDialog(screen+"\n› Ask Codex to do anything", KindCodex); stale.Usable() {
+		t.Fatalf("historical question revived: %+v", stale)
+	}
+}
+
 func TestParseCodexExpandedChoiceQuestion(t *testing.T) {
 	const screen = `• Queued follow-up inputs
 
